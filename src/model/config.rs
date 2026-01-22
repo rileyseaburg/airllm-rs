@@ -17,6 +17,8 @@ pub enum ModelArchitecture {
     Glm4,
     /// Mixtral MoE
     Mixtral,
+    /// Distillix/BitNet models
+    Distillix,
     /// Generic fallback
     Generic,
 }
@@ -51,6 +53,7 @@ impl ModelArchitecture {
                 "qwen" | "qwen2" => return ModelArchitecture::Qwen,
                 "glm4" | "glm4_moe" | "chatglm" => return ModelArchitecture::Glm4,
                 "mixtral" => return ModelArchitecture::Mixtral,
+                "distillix" | "bitnet" => return ModelArchitecture::Distillix,
                 _ => {}
             }
         }
@@ -65,6 +68,7 @@ impl ModelArchitecture {
             ModelArchitecture::Qwen => LayerNaming::qwen(),
             ModelArchitecture::Glm4 => LayerNaming::glm4(),
             ModelArchitecture::Mixtral => LayerNaming::default(), // Similar to Llama
+            ModelArchitecture::Distillix => LayerNaming::distillix(),
             ModelArchitecture::Generic => LayerNaming::default(),
         }
     }

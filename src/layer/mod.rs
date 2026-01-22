@@ -109,6 +109,25 @@ impl LayerNaming {
         }
     }
 
+    /// Create naming for Distillix/BitNet models (no model. prefix)
+    pub fn distillix() -> Self {
+        Self {
+            layer_prefix: "layers".to_string(),
+            q_proj: "self_attn.q_proj.weight".to_string(),
+            k_proj: "self_attn.k_proj.weight".to_string(),
+            v_proj: "self_attn.v_proj.weight".to_string(),
+            o_proj: "self_attn.o_proj.weight".to_string(),
+            gate_proj: "mlp.gate_proj.weight".to_string(),
+            up_proj: "mlp.up_proj.weight".to_string(),
+            down_proj: "mlp.down_proj.weight".to_string(),
+            input_layernorm: "input_layernorm.weight".to_string(),
+            post_attention_layernorm: "post_attention_layernorm.weight".to_string(),
+            embed_tokens: "embed_tokens.weight".to_string(),
+            norm: "norm.weight".to_string(),
+            lm_head: "lm_head.weight".to_string(),
+        }
+    }
+
     /// Create naming for Qwen models
     pub fn qwen() -> Self {
         Self {

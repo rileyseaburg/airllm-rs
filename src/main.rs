@@ -1,6 +1,6 @@
 //! AirLLM-RS CLI: Layer-wise LLM inference
 
-use airllm_rs::{InferenceEngine, GenerationConfig, Result};
+use airllm_rs::{InferenceEngine, GenerationConfig, ModelTokenizer, Result};
 use clap::{Parser, Subcommand};
 use tracing_subscriber::EnvFilter;
 
@@ -97,6 +97,10 @@ async fn run_inference(
 ) -> Result<()> {
     println!("Loading model from: {}", model_path);
 
+    // Load tokenizer
+    let tokenizer = ModelTokenizer::from_dir(model_path)?;
+    println!("Tokenizer loaded (vocab size: {})", tokenizer.vocab_size());
+
     // Load model
     let engine = InferenceEngine::from_pretrained(model_path)?;
 
@@ -115,22 +119,30 @@ async fn run_inference(
         ..Default::default()
     };
 
-    // TODO: Tokenize prompt
-    // For now, use placeholder token IDs
+    // Tokenize prompt
     println!("\nPrompt: {}", prompt);
-    println!("(Note: Tokenization not implemented yet, using placeholder IDs)\n");
-
-    // Placeholder: Just use some dummy token IDs
-    let input_ids: Vec<u32> = vec![1, 15043, 29892, 920, 526, 366]; // "Hello, how are you"
+    let mut input_ids = tokenizer.encode(prompt)?;
+    
+    // Add BOS token if available
+    if let Some(bos) = tokenizer.bos_token_id() {
+        input_ids.insert(0, bos);
+    }
+    
+    println!("Input tokens: {:?} ({} tokens)\n", &input_ids, input_ids.len());
 
     // Generate
+    println!("Generating {} tokens (this will be slow - CPU only, no SIMD)...\n", max_tokens);
     let output_ids = engine.generate(&input_ids, &gen_config)?;
 
-    println!("Generated {} tokens", output_ids.len() - input_ids.len());
-    println!("Token IDs: {:?}", &output_ids[input_ids.len()..]);
+    let new_tokens = output_ids.len() - input_ids.len();
+    println!("\nGenerated {} new tokens", new_tokens);
+    println!("Output token IDs: {:?}", &output_ids[input_ids.len()..]);
 
-    // TODO: Decode tokens
-    println!("\n(Token decoding not implemented yet)");
+    // Decode output
+    let output_text = tokenizer.decode(&output_ids)?;
+    println!("\n=== Generated Text ===");
+    println!("{}", output_text);
+    println!("======================");
 
     Ok(())
 }

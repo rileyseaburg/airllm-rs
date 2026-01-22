@@ -55,6 +55,9 @@ rayon = "1.10"
 # Bytemuck for safe transmutation
 bytemuck = { version = "1.21", features = ["derive"] }
 
+# HuggingFace tokenizers
+tokenizers = "0.21"
+
 [features]
 default = []
 python = ["pyo3"]

@@ -34,6 +34,7 @@ pub mod tensor;
 pub mod layer;
 pub mod model;
 pub mod inference;
+pub mod tokenizer;
 
 #[cfg(feature = "python")]
 pub mod python;
@@ -44,6 +45,7 @@ pub use tensor::{Tensor, DType};
 pub use layer::{LayerLoader, LayerCache};
 pub use model::{ModelConfig, ModelArchitecture};
 pub use inference::{InferenceEngine, GenerationConfig};
+pub use tokenizer::ModelTokenizer;
 
 /// Library version
 pub const VERSION: &str = env!("CARGO_PKG_VERSION");
