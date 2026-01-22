@@ -1,0 +1,69 @@
+[package]
+name = "airllm-rs"
+version = "0.1.0"
+edition = "2021"
+description = "High-performance layer-wise LLM inference in Rust"
+license = "MIT"
+repository = "https://github.com/rileyseaburg/airllm-rs"
+
+[lib]
+name = "airllm_rs"
+crate-type = ["cdylib", "rlib"]
+
+[[bin]]
+name = "airllm-cli"
+path = "src/main.rs"
+
+[dependencies]
+# Tensor operations
+safetensors = "0.5"
+half = { version = "2.4", features = ["std", "num-traits"] }
+
+# Memory mapping for zero-copy layer loading
+memmap2 = "0.9"
+
+# Async runtime for prefetching
+tokio = { version = "1.44", features = ["full"] }
+
+# Serialization
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+
+# Python bindings
+pyo3 = { version = "0.24", features = ["extension-module"], optional = true }
+
+# CLI
+clap = { version = "4.5", features = ["derive"] }
+
+# Progress bars
+indicatif = "0.17"
+
+# Error handling
+thiserror = "2.0"
+anyhow = "1.0"
+
+# Logging
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+
+# Huggingface hub for model downloads
+hf-hub = "0.4"
+
+# Rayon for parallel iteration
+rayon = "1.10"
+
+# Bytemuck for safe transmutation
+bytemuck = { version = "1.21", features = ["derive"] }
+
+[features]
+default = []
+python = ["pyo3"]
+
+[profile.release]
+opt-level = 3
+lto = "fat"
+codegen-units = 1
+panic = "abort"
+
+[profile.dev]
+opt-level = 1
