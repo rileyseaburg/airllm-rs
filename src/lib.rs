@@ -35,6 +35,9 @@ pub mod layer;
 pub mod model;
 pub mod inference;
 
+#[cfg(feature = "python")]
+pub mod python;
+
 // Re-exports
 pub use error::{Error, Result};
 pub use tensor::{Tensor, DType};
@@ -44,3 +47,7 @@ pub use inference::{InferenceEngine, GenerationConfig};
 
 /// Library version
 pub const VERSION: &str = env!("CARGO_PKG_VERSION");
+
+// Re-export Python module when building as extension
+#[cfg(feature = "python")]
+pub use python::*;

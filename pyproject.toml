@@ -1,0 +1,44 @@
+[build-system]
+requires = ["maturin>=1.0,<2.0"]
+build-backend = "maturin"
+
+[project]
+name = "airllm-rs"
+version = "0.1.0"
+description = "High-performance layer-wise LLM inference in Rust with Python bindings"
+readme = "README.md"
+license = { text = "MIT" }
+authors = [
+    { name = "Riley Seaburg", email = "riley@rileyseaburg.com" }
+]
+keywords = ["llm", "inference", "rust", "layer-wise", "memory-efficient"]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: Developers",
+    "Intended Audience :: Science/Research",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.9",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Rust",
+    "Topic :: Scientific/Engineering :: Artificial Intelligence",
+]
+requires-python = ">=3.9"
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=7.0",
+    "numpy>=1.20",
+]
+
+[project.urls]
+Homepage = "https://github.com/rileyseaburg/airllm-rs"
+Repository = "https://github.com/rileyseaburg/airllm-rs"
+Issues = "https://github.com/rileyseaburg/airllm-rs/issues"
+
+[tool.maturin]
+features = ["python"]
+python-source = "python"
+module-name = "airllm_rs"
