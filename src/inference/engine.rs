@@ -5,6 +5,7 @@ use crate::model::ModelConfig;
 use crate::tensor::{ops, DType, Tensor};
 use crate::Result;
 use indicatif::{ProgressBar, ProgressStyle};
+use rayon::prelude::*;
 use std::path::Path;
 use tracing::{debug, info};
 
@@ -73,7 +74,7 @@ impl InferenceEngine {
         ops::rms_norm(x, weight, self.config.rms_norm_eps)
     }
 
-    /// Compute attention (simplified, no KV cache yet)
+    /// Compute attention - parallelized across heads
     fn attention(&self, hidden: &Tensor, layer: &LayerWeights) -> Result<Tensor> {
         let seq_len = hidden.shape()[0];
         let hidden_size = self.config.hidden_size;
@@ -109,54 +110,86 @@ impl InferenceEngine {
         );
 
         let scale = 1.0 / (head_dim as f32).sqrt();
-        let mut output = vec![0.0f32; seq_len * hidden_size];
 
-        // For each head
-        for h in 0..num_heads {
-            let kv_h = h % num_kv_heads; // GQA mapping
+        // Parallel attention computation across heads
+        let head_outputs: Vec<Vec<f32>> = (0..num_heads)
+            .into_par_iter()
+            .map(|h| {
+                let kv_h = h % num_kv_heads; // GQA mapping
+                let mut head_out = vec![0.0f32; seq_len * head_dim];
 
-            // Compute attention scores
-            let mut scores = vec![0.0f32; seq_len * seq_len];
-            for i in 0..seq_len {
-                for j in 0..=i {
-                    // Causal mask
-                    let mut score = 0.0f32;
-                    for d in 0..head_dim {
-                        let q_idx = i * num_heads * head_dim + h * head_dim + d;
-                        let k_idx = j * num_kv_heads * head_dim + kv_h * head_dim + d;
-                        score += q_data[q_idx] * k_data[k_idx];
+                // Compute attention scores for this head
+                let mut scores = vec![0.0f32; seq_len * seq_len];
+
+                for i in 0..seq_len {
+                    // Compute Q[i] @ K[0..i+1]^T (causal)
+                    for j in 0..=i {
+                        let mut score = 0.0f32;
+                        let q_base = i * num_heads * head_dim + h * head_dim;
+                        let k_base = j * num_kv_heads * head_dim + kv_h * head_dim;
+
+                        // Unroll dot product by 4
+                        let mut d = 0;
+                        while d + 4 <= head_dim {
+                            score += q_data[q_base + d] * k_data[k_base + d];
+                            score += q_data[q_base + d + 1] * k_data[k_base + d + 1];
+                            score += q_data[q_base + d + 2] * k_data[k_base + d + 2];
+                            score += q_data[q_base + d + 3] * k_data[k_base + d + 3];
+                            d += 4;
+                        }
+                        while d < head_dim {
+                            score += q_data[q_base + d] * k_data[k_base + d];
+                            d += 1;
+                        }
+
+                        scores[i * seq_len + j] = score * scale;
                     }
-                    scores[i * seq_len + j] = score * scale;
-                }
-                // Mask future positions
-                for j in (i + 1)..seq_len {
-                    scores[i * seq_len + j] = f32::NEG_INFINITY;
-                }
-            }
 
-            // Softmax per row
-            for i in 0..seq_len {
-                let row = &mut scores[i * seq_len..(i + 1) * seq_len];
-                let max_val = row.iter().cloned().fold(f32::NEG_INFINITY, f32::max);
-                let mut sum = 0.0f32;
-                for x in row.iter_mut() {
-                    *x = (*x - max_val).exp();
-                    sum += *x;
-                }
-                for x in row.iter_mut() {
-                    *x /= sum;
-                }
-            }
+                    // Softmax for row i (only over valid positions 0..=i)
+                    let row_start = i * seq_len;
+                    let valid_len = i + 1;
 
-            // Apply attention to values
+                    // Find max
+                    let max_val = scores[row_start..row_start + valid_len]
+                        .iter()
+                        .cloned()
+                        .fold(f32::NEG_INFINITY, f32::max);
+
+                    // Exp and sum
+                    let mut sum = 0.0f32;
+                    for j in 0..valid_len {
+                        let exp_val = (scores[row_start + j] - max_val).exp();
+                        scores[row_start + j] = exp_val;
+                        sum += exp_val;
+                    }
+
+                    // Normalize
+                    let inv_sum = 1.0 / sum;
+                    for j in 0..valid_len {
+                        scores[row_start + j] *= inv_sum;
+                    }
+
+                    // Apply attention: out[i] = sum_j(scores[i,j] * V[j])
+                    for d in 0..head_dim {
+                        let mut val = 0.0f32;
+                        for j in 0..valid_len {
+                            let v_idx = j * num_kv_heads * head_dim + kv_h * head_dim + d;
+                            val += scores[row_start + j] * v_data[v_idx];
+                        }
+                        head_out[i * head_dim + d] = val;
+                    }
+                }
+
+                head_out
+            })
+            .collect();
+
+        // Concatenate head outputs
+        let mut output = vec![0.0f32; seq_len * hidden_size];
+        for (h, head_out) in head_outputs.iter().enumerate() {
             for i in 0..seq_len {
                 for d in 0..head_dim {
-                    let mut val = 0.0f32;
-                    for j in 0..seq_len {
-                        let v_idx = j * num_kv_heads * head_dim + kv_h * head_dim + d;
-                        val += scores[i * seq_len + j] * v_data[v_idx];
-                    }
-                    output[i * hidden_size + h * head_dim + d] = val;
+                    output[i * hidden_size + h * head_dim + d] = head_out[i * head_dim + d];
                 }
             }
         }
