@@ -90,22 +90,25 @@ impl Default for LayerNaming {
 }
 
 impl LayerNaming {
-    /// Create naming for GLM-4 models
+    /// Create naming for GLM-4 models (original GLM-4 architecture)
     pub fn glm4() -> Self {
         Self {
-            layer_prefix: "transformer.encoder.layers".to_string(),
-            q_proj: "self_attention.query_key_value.weight".to_string(), // Combined QKV
-            k_proj: "".to_string(), // Part of combined
-            v_proj: "".to_string(), // Part of combined
-            o_proj: "self_attention.dense.weight".to_string(),
-            gate_proj: "mlp.dense_h_to_4h.weight".to_string(),
-            up_proj: "".to_string(), // Part of combined in GLM
-            down_proj: "mlp.dense_4h_to_h.weight".to_string(),
+            layer_prefix: "model.layers".to_string(),
+            // GLM-4.7-Flash uses MLA (Multi-head Latent Attention) with LoRA-style decomposition
+            // q_a_proj, q_b_proj, q_a_layernorm for Q
+            // kv_a_proj_with_mqa, kv_b_proj, kv_a_layernorm for KV
+            q_proj: "self_attn.q_a_proj.weight".to_string(),
+            k_proj: "self_attn.kv_a_proj_with_mqa.weight".to_string(),
+            v_proj: "self_attn.kv_b_proj.weight".to_string(),
+            o_proj: "self_attn.o_proj.weight".to_string(),
+            gate_proj: "mlp.gate_proj.weight".to_string(),
+            up_proj: "mlp.up_proj.weight".to_string(),
+            down_proj: "mlp.down_proj.weight".to_string(),
             input_layernorm: "input_layernorm.weight".to_string(),
             post_attention_layernorm: "post_attention_layernorm.weight".to_string(),
-            embed_tokens: "transformer.embedding.word_embeddings.weight".to_string(),
-            norm: "transformer.encoder.final_layernorm.weight".to_string(),
-            lm_head: "transformer.output_layer.weight".to_string(),
+            embed_tokens: "model.embed_tokens.weight".to_string(),
+            norm: "model.norm.weight".to_string(),
+            lm_head: "lm_head.weight".to_string(),
         }
     }
 

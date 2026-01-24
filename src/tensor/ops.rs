@@ -175,6 +175,65 @@ pub fn add(a: &Tensor, b: &Tensor) -> Result<Tensor> {
     Tensor::from_f32(&out, a.dtype(), a.shape().to_vec())
 }
 
+/// Apply Rotary Position Embeddings (RoPE) to query and key tensors
+///
+/// q: [seq_len, num_heads, head_dim]
+/// k: [seq_len, num_kv_heads, head_dim]
+///
+/// Returns (q_rotated, k_rotated) with the same shapes
+pub fn apply_rope(
+    q: &[f32],
+    k: &[f32],
+    seq_len: usize,
+    num_heads: usize,
+    num_kv_heads: usize,
+    head_dim: usize,
+    rope_theta: f32,
+) -> (Vec<f32>, Vec<f32>) {
+    // Precompute frequency bands
+    // freq[i] = 1.0 / (theta ^ (2i / head_dim))
+    let half_dim = head_dim / 2;
+    let freqs: Vec<f32> = (0..half_dim)
+        .map(|i| 1.0 / rope_theta.powf(2.0 * i as f32 / head_dim as f32))
+        .collect();
+
+    let mut q_rotated = q.to_vec();
+    let mut k_rotated = k.to_vec();
+
+    // Apply RoPE to each position
+    for pos in 0..seq_len {
+        // Compute position-dependent angles
+        let angles: Vec<f32> = freqs.iter().map(|&f| pos as f32 * f).collect();
+        let cos_vals: Vec<f32> = angles.iter().map(|&a| a.cos()).collect();
+        let sin_vals: Vec<f32> = angles.iter().map(|&a| a.sin()).collect();
+
+        // Apply to Q
+        for h in 0..num_heads {
+            let base = pos * num_heads * head_dim + h * head_dim;
+            for i in 0..half_dim {
+                let x0 = q[base + i];
+                let x1 = q[base + i + half_dim];
+                // Rotate: [x0, x1] -> [x0*cos - x1*sin, x0*sin + x1*cos]
+                q_rotated[base + i] = x0 * cos_vals[i] - x1 * sin_vals[i];
+                q_rotated[base + i + half_dim] = x0 * sin_vals[i] + x1 * cos_vals[i];
+            }
+        }
+
+        // Apply to K
+        for h in 0..num_kv_heads {
+            let base = pos * num_kv_heads * head_dim + h * head_dim;
+            for i in 0..half_dim {
+                let x0 = k[base + i];
+                let x1 = k[base + i + half_dim];
+                k_rotated[base + i] = x0 * cos_vals[i] - x1 * sin_vals[i];
+                k_rotated[base + i + half_dim] = x0 * sin_vals[i] + x1 * cos_vals[i];
+            }
+        }
+    }
+
+    (q_rotated, k_rotated)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

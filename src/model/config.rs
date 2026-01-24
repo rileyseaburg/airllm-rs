@@ -51,7 +51,9 @@ impl ModelArchitecture {
             match model_type {
                 "llama" | "mistral" => return ModelArchitecture::Llama,
                 "qwen" | "qwen2" => return ModelArchitecture::Qwen,
-                "glm4" | "glm4_moe" | "chatglm" => return ModelArchitecture::Glm4,
+                "glm4" | "glm4_moe" | "glm4_moe_lite" | "chatglm" => {
+                    return ModelArchitecture::Glm4
+                }
                 "mixtral" => return ModelArchitecture::Mixtral,
                 "distillix" | "bitnet" => return ModelArchitecture::Distillix,
                 _ => {}

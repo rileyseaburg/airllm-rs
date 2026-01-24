@@ -35,6 +35,10 @@ enum Commands {
         /// Top-p (nucleus sampling)
         #[arg(long, default_value = "0.9")]
         top_p: f32,
+
+        /// Repetition penalty (1.0 = disabled, >1.0 = penalize repetition)
+        #[arg(long, default_value = "1.1")]
+        repetition_penalty: f32,
     },
 
     /// Show model information
@@ -72,8 +76,9 @@ async fn main() -> Result<()> {
             max_tokens,
             temperature,
             top_p,
+            repetition_penalty,
         } => {
-            run_inference(&model, &prompt, max_tokens, temperature, top_p).await?;
+            run_inference(&model, &prompt, max_tokens, temperature, top_p, repetition_penalty).await?;
         }
 
         Commands::Info { model } => {
@@ -94,6 +99,7 @@ async fn run_inference(
     max_tokens: usize,
     temperature: f32,
     top_p: f32,
+    repetition_penalty: f32,
 ) -> Result<()> {
     println!("Loading model from: {}", model_path);
 
@@ -115,6 +121,7 @@ async fn run_inference(
         max_new_tokens: max_tokens,
         temperature,
         top_p,
+        repetition_penalty,
         do_sample: temperature > 0.0,
         ..Default::default()
     };

@@ -92,13 +92,21 @@ impl InferenceEngine {
         let k = k.reshape(vec![seq_len, num_kv_heads, head_dim])?;
         let v = v.reshape(vec![seq_len, num_kv_heads, head_dim])?;
 
-        // Simplified attention: Q @ K^T / sqrt(d) -> softmax -> @ V
-        // This is O(n^2) and doesn't use flash attention
-        // TODO: Implement proper scaled dot-product attention with RoPE
-
-        let q_data = q.to_f32_vec();
-        let k_data = k.to_f32_vec();
+        // Get raw data
+        let q_raw = q.to_f32_vec();
+        let k_raw = k.to_f32_vec();
         let v_data = v.to_f32_vec();
+
+        // Apply RoPE (Rotary Position Embeddings)
+        let (q_data, k_data) = ops::apply_rope(
+            &q_raw,
+            &k_raw,
+            seq_len,
+            num_heads,
+            num_kv_heads,
+            head_dim,
+            self.config.rope_theta,
+        );
 
         let scale = 1.0 / (head_dim as f32).sqrt();
         let mut output = vec![0.0f32; seq_len * hidden_size];
@@ -244,8 +252,8 @@ impl InferenceEngine {
             let vocab_size = self.config.vocab_size;
             let last_logits = &logits_data[logits_data.len() - vocab_size..];
 
-            // Sample next token
-            let next_token = sample_logits(last_logits, config) as u32;
+            // Sample next token (pass current tokens for repetition penalty)
+            let next_token = sample_logits(last_logits, config, &tokens) as u32;
 
             // Check for EOS
             // TODO: Get EOS token from tokenizer

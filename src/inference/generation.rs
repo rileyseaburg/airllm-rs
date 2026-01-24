@@ -74,11 +74,29 @@ impl GenerationConfig {
     }
 }
 
-/// Sample from logits
-pub fn sample_logits(logits: &[f32], config: &GenerationConfig) -> usize {
+/// Sample from logits with repetition penalty
+pub fn sample_logits(logits: &[f32], config: &GenerationConfig, previous_tokens: &[u32]) -> usize {
+    // Apply repetition penalty first
+    let mut scaled: Vec<f32> = logits.to_vec();
+    if config.repetition_penalty != 1.0 {
+        for &token in previous_tokens {
+            let idx = token as usize;
+            if idx < scaled.len() {
+                // Penalize tokens that have appeared before
+                // If logit > 0, divide by penalty (reduce probability)
+                // If logit < 0, multiply by penalty (make more negative)
+                if scaled[idx] > 0.0 {
+                    scaled[idx] /= config.repetition_penalty;
+                } else {
+                    scaled[idx] *= config.repetition_penalty;
+                }
+            }
+        }
+    }
+
     if !config.do_sample || config.temperature < 1e-6 {
         // Greedy: return argmax
-        return logits
+        return scaled
             .iter()
             .enumerate()
             .max_by(|(_, a), (_, b)| a.partial_cmp(b).unwrap())
@@ -87,7 +105,7 @@ pub fn sample_logits(logits: &[f32], config: &GenerationConfig) -> usize {
     }
 
     // Apply temperature
-    let scaled: Vec<f32> = logits.iter().map(|&x| x / config.temperature).collect();
+    let scaled: Vec<f32> = scaled.iter().map(|&x| x / config.temperature).collect();
 
     // Apply top-k if set
     let (indices, probs) = if config.top_k > 0 && config.top_k < scaled.len() {
@@ -173,6 +191,17 @@ mod tests {
     fn test_greedy_sampling() {
         let logits = vec![1.0, 3.0, 2.0, 0.5];
         let config = GenerationConfig::greedy();
-        assert_eq!(sample_logits(&logits, &config), 1); // Index of 3.0
+        assert_eq!(sample_logits(&logits, &config, &[]), 1); // Index of 3.0
+    }
+
+    #[test]
+    fn test_repetition_penalty() {
+        let logits = vec![1.0, 3.0, 2.0, 0.5];
+        let mut config = GenerationConfig::greedy();
+        config.repetition_penalty = 2.0;
+        // Without penalty, token 1 (logit 3.0) wins
+        // With penalty on token 1, its logit becomes 3.0/2.0 = 1.5
+        // So token 2 (logit 2.0) should win
+        assert_eq!(sample_logits(&logits, &config, &[1]), 2);
     }
 }
